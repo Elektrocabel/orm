@@ -60,15 +60,16 @@ class Manage:
 
     def select(self, **kwargs):
         table_name = self.model_cls.Meta.table_name
-        condition = ''
+        condition = []
         for k, v in kwargs.items():
-            condition += f'{k}={v}, '
-        condition = condition[:-2]
+            condition.append(f'{k}={v}')
+        condition = ' and '.join(condition)
         req = f'select * from {table_name} where {condition}'
         ans = self.send(req)
-        instance = self.model_cls()
-        for k, v in ans.items():
-            setattr(instance, k, v)
+        instances = []
+        for d in ans:
+            instances.append(self.model_cls(**d))
+        return instances
 
     def delete(self, obj=None, **kwargs):
         table_name = self.model_cls.Meta.table_name
@@ -78,20 +79,28 @@ class Manage:
         elif kwargs == {}:
             req = f'delete from {table_name}'
         else:
-            condition = ''
+            condition = []
             for k, v in kwargs.items():
-                condition += f'{k}={v}, '
-            condition = condition[:-2]
+                condition.append(f'{k}={v}')
+            condition = ' and '.join(condition)
             req = f'delete from {table_name} where {condition}'
         self.send(req)
 
-    def update(self, **kwargs):
-        pass
+    def update(self, obj=None, **kwargs):
+        table_name = self.model_cls.Meta.table_name
+        if obj is not None:
+            assign = []
+            for k, v in obj.__dict__.items():
+                assign.append(f'{k}={v}')
+            assign = ', '.join(assign)
+            req = f'update {table_name} set {assign} where '
+
+        self.send(req)
 
     @staticmethod
     def send(request):
         print(request)
-        return {'id': 5, 'name': 'Kolya'}
+        return [{'id': 5, 'name': 'Kolya'}, {'id': 5, 'name': 'Anna'}]
 
 
 class Model(metaclass=ModelMeta):
@@ -110,7 +119,7 @@ class Model(metaclass=ModelMeta):
         type(self).objects.delete(self)
 
     def save(self):
-        pass
+        type(self).objects.update(self)
 
 
 class User(Model):
@@ -122,7 +131,11 @@ class User(Model):
 
 
 User.objects.create(id=2, name='Vasya')
-User.objects.delete(id=2)
+User.objects.delete(id=2, name='Sasha')
 user = User(id='3', name='Katya')
 user.delete()
-# User.objects.select(id=5)
+users = User.objects.select(id=5)
+print(users)
+user1 = users[0]
+user1.id = 8
+user1.save()
