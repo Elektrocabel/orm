@@ -44,7 +44,7 @@ class ModelMeta(type):
         mro = super().__new__(mcs, name, bases, namespace).mro()
         for cls in mro:
             for k, v in cls.__dict__.items():
-                if isinstance(v, Field):
+                if isinstance(v, Field) and k not in fields:
                     fields[k] = v
 
         namespace['_fields'] = fields
