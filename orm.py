@@ -41,6 +41,12 @@ class ModelMeta(type):
 
         fields = {k: v for k, v in namespace.items()
                   if isinstance(v, Field)}
+        mro = super().__new__(mcs, name, bases, namespace).mro()
+        for cls in mro:
+            for k, v in cls.__dict__.items():
+                if isinstance(v, Field):
+                    fields[k] = v
+
         namespace['_fields'] = fields
         namespace['_table_name'] = meta.table_name
         return super().__new__(mcs, name, bases, namespace)
@@ -165,17 +171,11 @@ class User(Model):
         table_name = 'users'
 
 
-# User.objects.delete(id=2, name='Sasha')
-# user = User(id='3', name='Katya')
-# user.delete()
-# users = User.objects.select(id=5)
-# print(users)
-# user1 = users[0]
-# user1.id = 8
-# user1.save()
+class Student(User):
+    faculty = StringField()
 
-user = User.objects.select(name='Vika')[0]
-user.name = 'Vanya'
-user.save()
-user = User.objects.select(id=3)[0]
-print(user.name)
+    class Meta:
+        table_name = 'students'
+
+
+Student.objects.create(id=1, name='Vasilisa', faculty='EBM')
