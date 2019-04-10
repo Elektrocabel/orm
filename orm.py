@@ -1,3 +1,6 @@
+from mysql import connector
+
+
 class Field:
     def __init__(self, f_type, required=True, default=None):
         self.f_type = f_type
@@ -9,7 +12,7 @@ class Field:
             if not self.required:
                 return None
             else:
-                raise ValueError('Required item is not defined')
+                raise ValueError('Required field is not defined')
         return self.f_type(value)
 
 
@@ -53,54 +56,86 @@ class Manage:
 
     def create(self, **kwargs):
         table_name = self.model_cls.Meta.table_name
-        col_name = tuple(kwargs.keys())
-        values = tuple(kwargs.values())
-        req = f'insert into {table_name} {col_name} values {values}'
-        self.send(req)
+        col_name = ', '.join(kwargs.keys())
+        values = ', '.join(['%s'] * len(kwargs))
+        query = f'insert into {table_name}({col_name}) values({values})'
+        args = tuple(kwargs.values())
+        self.execute(query, args)
 
     def select(self, **kwargs):
         table_name = self.model_cls.Meta.table_name
-        condition = []
-        for k, v in kwargs.items():
-            condition.append(f'{k}={v}')
-        condition = ' and '.join(condition)
-        req = f'select * from {table_name} where {condition}'
-        ans = self.send(req)
+
+        if kwargs == {}:
+            query = f'select * from {table_name}'
+            args = None
+
+        else:
+            condition = '=%s and '.join(kwargs.keys()) + '=%s'
+            query = f'select * from {table_name} where {condition}'
+            args = tuple(kwargs.values())
+
+        ans = self.execute(query, args)
         instances = []
         for d in ans:
             instances.append(self.model_cls(**d))
+
         return instances
 
     def delete(self, obj=None, **kwargs):
         table_name = self.model_cls.Meta.table_name
+        args = None
+
         if obj is not None:
-            key, val = list(obj.__dict__.items())[0]
-            req = f'delete from {table_name} where {key}={val}'
+            query = f'delete from {table_name} where id={obj.id}'
+
         elif kwargs == {}:
-            req = f'delete from {table_name}'
+            query = f'delete from {table_name}'
+
         else:
-            condition = []
-            for k, v in kwargs.items():
-                condition.append(f'{k}={v}')
-            condition = ' and '.join(condition)
-            req = f'delete from {table_name} where {condition}'
-        self.send(req)
+            condition = '=%s and'.join(kwargs.keys()) + '=%s'
+            query = f'delete from {table_name} where {condition}'
+            args = tuple(kwargs.values())
 
-    def update(self, obj=None, **kwargs):
+        self.execute(query, args)
+
+    def update(self, obj=None):
         table_name = self.model_cls.Meta.table_name
-        if obj is not None:
-            assign = []
-            for k, v in obj.__dict__.items():
-                assign.append(f'{k}={v}')
-            assign = ', '.join(assign)
-            req = f'update {table_name} set {assign} where '
 
-        self.send(req)
+        if obj is None:
+            raise ValueError('object is None, select object to save')
+
+        assign = '=%s, '.join(obj.__dict__.keys()) + '=%s'
+        query = f'update {table_name} set {assign} where id={obj.id}'
+        args = tuple(obj.__dict__.values())
+
+        self.execute(query, args)
 
     @staticmethod
-    def send(request):
-        print(request)
-        return [{'id': 5, 'name': 'Kolya'}, {'id': 5, 'name': 'Anna'}]
+    def execute(query, args):
+        answer = None
+        try:
+            conn = connector.connect(host='localhost',
+                                     database='persons',
+                                     user='some_admin',
+                                     password='')
+            cursor = conn.cursor()
+            cursor.execute(query, args)
+            if query[0] == 's':
+                rows = cursor.fetchall()
+                columns = cursor.column_names
+                answer = []
+                for i in range(len(rows)):
+                    d = dict()
+                    for j in range(len(columns)):
+                        d[columns[j]] = rows[i][j]
+                    answer.append(d)
+            conn.commit()
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        return answer
 
 
 class Model(metaclass=ModelMeta):
@@ -127,15 +162,20 @@ class User(Model):
     name = StringField()
 
     class Meta:
-        table_name = 'Users'
+        table_name = 'users'
 
 
-User.objects.create(id=2, name='Vasya')
-User.objects.delete(id=2, name='Sasha')
-user = User(id='3', name='Katya')
-user.delete()
-users = User.objects.select(id=5)
-print(users)
-user1 = users[0]
-user1.id = 8
-user1.save()
+# User.objects.delete(id=2, name='Sasha')
+# user = User(id='3', name='Katya')
+# user.delete()
+# users = User.objects.select(id=5)
+# print(users)
+# user1 = users[0]
+# user1.id = 8
+# user1.save()
+
+user = User.objects.select(name='Vika')[0]
+user.name = 'Vanya'
+user.save()
+user = User.objects.select(id=3)[0]
+print(user.name)
